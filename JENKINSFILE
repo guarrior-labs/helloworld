@@ -41,7 +41,7 @@ pipeline {
                                 set FLASK_APP=app\\api.py
                                 set FLASK_ENV=development
 
-                                start flask run
+                                start flask
 
                                 start java -jar C:\\Users\\Guarr1or\\Downloads\\Programas\\DevOps\\WireMock\\wiremock-standalone-3.13.2.jar --port 9090 --root-dir test\\wiremock
 
