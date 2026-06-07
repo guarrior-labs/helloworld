@@ -2,64 +2,95 @@ pipeline {
     agent any
 
     stages {
+
         stage('Get Code') {
             steps {
-                //obtener codigo del repositorio
+                // Obtener el código fuente desde GitHub
                 git 'https://github.com/guarrior-labs/helloworld.git'
             }
         }
-        
+
         stage('Build') {
             steps {
-                //Compilación de Código 
+                // Python es interpretado, por lo que no requiere compilación
                 echo 'Eyyy, esto es Python, no hay que compilar nada!!!'
+
+                // Mostrar la ruta del workspace asignado por Jenkins
                 echo WORKSPACE
+
+                // Listar los archivos descargados en el workspace
                 bat 'dir'
             }
         }
-        
+
         stage('Tests') {
+
+            // Ejecutar pruebas en paralelo para reducir tiempos
             parallel {
-        
+
                 stage('Unit') {
                     steps {
-                        //Pruebas Unitarias
+
+                        // Ejecutar pruebas unitarias
                         catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+
                             bat '''
+                                REM Agregar el workspace al PYTHONPATH
                                 set "PYTHONPATH=%WORKSPACE%"
+
+                                REM Instalar pytest si no existe
                                 python -m pip install pytest
+
+                                REM Ejecutar pruebas unitarias y generar reporte JUnit XML
                                 python -m pytest --junitxml=result-unit.xml test/unit
-                                '''
+                            '''
                         }
                     }
                 }
+
                 stage('Rest') {
                     steps {
-                        //Microservicios
+
+                        // Ejecutar pruebas de integración / REST
                         catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+
                             bat '''
+                                REM Definir el archivo principal de Flask
                                 set FLASK_APP=app\\api.py
+
+                                REM Configurar Flask en modo desarrollo
                                 set FLASK_ENV=development
 
+                                REM Levantar la API Flask en segundo plano
                                 start "" cmd /c flask run
+
+                                REM Levantar WireMock para simular servicios externos
                                 start "" cmd /c java -jar C:\\Users\\Guarr1or\\Downloads\\Programas\\DevOps\\WireMock\\wiremock-standalone-3.13.2.jar --port 9090 --root-dir test\\wiremock
+
+                                REM Esperar unos segundos para que los servicios arranquen
                                 timeout /t 10 /nobreak
 
+                                REM Agregar el workspace al PYTHONPATH
                                 set "PYTHONPATH=%WORKSPACE%"
+
+                                REM Instalar pytest si no existe
                                 python -m pip install pytest
+
+                                REM Ejecutar pruebas REST y generar reporte JUnit XML
                                 python -m pytest --junitxml=result-rest.xml test\\rest
                             '''
                         }
                     }
                 }
             }
-        }    
-        
+        }
+
         stage('Results') {
             steps {
-                //Resultados de Pruebas
+
+                // Publicar en Jenkins los resultados generados por pytest
                 junit 'result*.xml'
             }
-        }        
+        }
     }
 }
