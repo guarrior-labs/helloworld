@@ -1,22 +1,29 @@
 pipeline {
-    agent any
+    agent none
 
     stages {
 
         stage('Get Code') {
+            agent any
             steps {
+                //Limpia WorSpace antes de clonar.
+                deleteDir()
+                
                 // Obtener el código fuente desde GitHub
                 git 'https://github.com/guarrior-labs/helloworld.git'
+                
+                stash name: 'source-code', includes: '**/*'
             }
         }
 
         stage('Build') {
+            agent any
             steps {
                 // Python es interpretado, por lo que no requiere compilación
-                echo 'EYYY, esto es Python, no hay que compilar nada!!!'
+                echo 'Eyyy, esto es Python, no hay que compilar nada!!!'
 
                 // Mostrar la ruta del workspace asignado por Jenkins
-                echo WORKSPACE
+                echo "${env.WORKSPACE}"
 
                 // Listar los archivos descargados en el workspace
                 bat 'dir'
@@ -27,9 +34,11 @@ pipeline {
 
             // Ejecutar pruebas en paralelo para reducir tiempos
             parallel {
-
+    
                 stage('Unit') {
+                    agent { label 'Nodo1'}
                     steps {
+                        unstash 'source-code'
 
                         // Ejecutar pruebas unitarias
                         catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
@@ -50,8 +59,10 @@ pipeline {
                 }
 
                 stage('Rest') {
+                    agent { label 'Nodo2'}
                     steps {
-
+                        unstash 'source-code'
+                        
                         // Ejecutar pruebas de integración / REST
                         catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
 
@@ -68,8 +79,9 @@ pipeline {
                                 REM Levantar WireMock para simular servicios externos
                                 start "" cmd /c java -jar C:\\Users\\Guarr1or\\Downloads\\Programas\\DevOps\\WireMock\\wiremock-standalone-3.13.2.jar --port 9090 --root-dir test\\wiremock
 
+                                
                                 REM Esperar unos segundos para que los servicios arranquen
-                                timeout /t 10 /nobreak
+                                ping 127.0.0.1 -n 11 > nul
 
                                 REM Agregar el workspace al PYTHONPATH
                                 set "PYTHONPATH=%WORKSPACE%"
@@ -88,6 +100,7 @@ pipeline {
         }
 
         stage('Results') {
+            agent any
             steps {
 
                 // Publicar en Jenkins los resultados generados por pytest
