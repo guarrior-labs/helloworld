@@ -13,7 +13,7 @@ pipeline {
         stage('Build') {
             steps {
                 // Python es interpretado, por lo que no requiere compilación
-                echo 'Eyyy, esto es Python, no hay que compilar nada!!!'
+                echo 'EYYY, esto es Python, no hay que compilar nada!!!'
 
                 // Mostrar la ruta del workspace asignado por Jenkins
                 echo WORKSPACE
