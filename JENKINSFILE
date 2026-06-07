@@ -5,95 +5,137 @@ pipeline {
 
         stage('Get Code') {
             agent any
+
             steps {
-                //Limpia WorSpace antes de clonar.
+                echo '=== LIMPIANDO WORKSPACE ==='
+
+                // Limpia completamente el workspace
                 deleteDir()
-                
-                // Obtener el código fuente desde GitHub
+
+                echo '=== DESCARGANDO CODIGO DESDE GITHUB ==='
+
+                // Obtener código fuente
                 git 'https://github.com/guarrior-labs/helloworld.git'
-                
+
+                // Compartir código con los demás agentes
                 stash name: 'source-code', includes: '**/*'
             }
         }
 
         stage('Build') {
             agent any
+
             steps {
-                // Python es interpretado, por lo que no requiere compilación
-                echo 'Eyyy, esto es Python, no hay que compilar nada!!!'
+                unstash 'source-code'
+                 
+                echo '=== BUILD STAGE ==='
+                echo 'Eyyy, Python es interpretado, no requiere compilacion.'
 
-                // Mostrar la ruta del workspace asignado por Jenkins
-                echo "${env.WORKSPACE}"
+                echo "WORKSPACE: ${env.WORKSPACE}"
 
-                // Listar los archivos descargados en el workspace
-                bat 'dir'
+                bat '''
+                    echo.
+                    echo ===== INFORMACION DEL AGENTE =====
+                    hostname
+                    whoami
+                    echo WORKSPACE=%WORKSPACE%
+                    echo.
+
+                    echo ===== VERSIONES =====
+                    python --version
+                    echo.
+
+                    echo ===== CONTENIDO DEL WORKSPACE =====
+                    dir
+                '''
             }
         }
 
         stage('Tests') {
-
-            // Ejecutar pruebas en paralelo para reducir tiempos
             parallel {
-    
                 stage('Unit') {
-                    agent { label 'Nodo1'}
+                    agent { label 'Nodo1' }
                     steps {
+                        echo 'Ejecutando pruebas UNITARIAS en Nodo1'
                         unstash 'source-code'
-
-                        // Ejecutar pruebas unitarias
                         catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-
                             bat '''
-                                REM Agregar el workspace al PYTHONPATH
+                                echo.
+                                echo ==========================================
+                                echo PRUEBAS UNITARIAS - NODO1
+                                echo ==========================================
+
+                                hostname
+                                whoami
+                                echo WORKSPACE=%WORKSPACE%
+                                echo.
+
+                                echo ===== VERSIONES =====
+                                python --version
+                                python -m pytest --version
+                                echo.
+
+                                REM Configurar PYTHONPATH
                                 set "PYTHONPATH=%WORKSPACE%"
 
-                                REM Instalar pytest si no existe
+                                REM Instalar pytest
                                 python -m pip install pytest
 
-                                REM Ejecutar pruebas unitarias y generar reporte JUnit XML
-                                python -m pytest --junitxml=result-unit.xml test/unit
+                                REM Ejecutar pruebas unitarias
+                                python -m pytest --junitxml=result-unit.xml test\\unit
                             '''
                         }
-                        stash name:'result-unit', includes:'result-unit.xml'
+                        stash name: 'result-unit', includes: 'result-unit.xml'
                     }
                 }
 
                 stage('Rest') {
-                    agent { label 'Nodo2'}
+                    agent { label 'Nodo2' }
                     steps {
+                        echo 'Ejecutando pruebas REST en Nodo2'
                         unstash 'source-code'
-                        
-                        // Ejecutar pruebas de integración / REST
                         catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-
                             bat '''
-                                REM Definir el archivo principal de Flask
-                                set FLASK_APP=app\\api.py
+                                echo.
+                                echo ==========================================
+                                echo PRUEBAS REST - NODO2
+                                echo ==========================================
 
-                                REM Configurar Flask en modo desarrollo
+                                hostname
+                                whoami
+                                echo WORKSPACE=%WORKSPACE%
+                                echo.
+
+                                echo ===== VERSIONES =====
+                                python --version
+                                python -m pytest --version
+                                java -version
+                                echo.
+
+                                REM Configurar Flask
+                                set FLASK_APP=app\\api.py
                                 set FLASK_ENV=development
 
-                                REM Levantar la API Flask en segundo plano
+                                REM Levantar Flask
                                 start "" cmd /c flask run
 
-                                REM Levantar WireMock para simular servicios externos
+                                REM Levantar WireMock
                                 start "" cmd /c java -jar C:\\Users\\Guarr1or\\Downloads\\Programas\\DevOps\\WireMock\\wiremock-standalone-3.13.2.jar --port 9090 --root-dir test\\wiremock
 
-                                
-                                REM Esperar unos segundos para que los servicios arranquen
+                                REM Esperar arranque de servicios
                                 ping 127.0.0.1 -n 11 > nul
 
-                                REM Agregar el workspace al PYTHONPATH
+                                REM Configurar PYTHONPATH
                                 set "PYTHONPATH=%WORKSPACE%"
 
-                                REM Instalar pytest si no existe
+                                REM Instalar pytest
                                 python -m pip install pytest
 
-                                REM Ejecutar pruebas REST y generar reporte JUnit XML
+                                REM Ejecutar pruebas REST
                                 python -m pytest --junitxml=result-rest.xml test\\rest
                             '''
                         }
-                        stash name:'result-rest', includes:'result-rest.xml'
+                        stash name: 'result-rest', includes: 'result-rest.xml'
                     }
                 }
             }
@@ -102,8 +144,7 @@ pipeline {
         stage('Results') {
             agent any
             steps {
-
-                // Publicar en Jenkins los resultados generados por pytest
+                echo '=== PUBLICANDO RESULTADOS ==='
                 unstash name:'result-unit'
                 unstash name:'result-rest'
                 junit 'result*.xml'
