@@ -45,6 +45,7 @@ pipeline {
                                 python -m pytest --junitxml=result-unit.xml test/unit
                             '''
                         }
+                        stash name:'result-unit', includes:'result-unit.xml'
                     }
                 }
 
@@ -80,6 +81,7 @@ pipeline {
                                 python -m pytest --junitxml=result-rest.xml test\\rest
                             '''
                         }
+                        stash name:'result-rest', includes:'result-rest.xml'
                     }
                 }
             }
@@ -89,6 +91,8 @@ pipeline {
             steps {
 
                 // Publicar en Jenkins los resultados generados por pytest
+                unstash name:'result-unit'
+                unstash name:'result-rest'
                 junit 'result*.xml'
             }
         }
