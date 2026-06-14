@@ -10,7 +10,7 @@ pipeline {
                 deleteDir()
 
                 echo '=== DESCARGANDO REPOSITORIO ==='
-                git 'https://github.com/guarrior-labs/helloworld.git'
+                git branch: 'feature_fix_coverage', url: 'https://github.com/guarrior-labs/helloworld.git'
 
                 echo '=== COMPARTIR ARCHIVOS CON DEMAS AGENTES ==='
                 stash name: 'source-code', includes: '**/*'
