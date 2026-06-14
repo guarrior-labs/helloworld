@@ -1,5 +1,5 @@
 import pytest
-from calc import Calculator
+from app.calc import Calculator
 
 def test_divide_by_zero():
     calc = Calculator()
