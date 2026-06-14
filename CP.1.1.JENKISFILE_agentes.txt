@@ -1,6 +1,5 @@
 pipeline {
     agent none
-
     stages {
 
         stage('Get Code') {
@@ -8,147 +7,223 @@ pipeline {
 
             steps {
                 echo '=== LIMPIANDO WORKSPACE ==='
-
-                // Limpia completamente el workspace
                 deleteDir()
 
-                echo '=== DESCARGANDO CODIGO DESDE GITHUB ==='
-
-                // Obtener código fuente
+                echo '=== DESCARGANDO REPOSITORIO ==='
                 git 'https://github.com/guarrior-labs/helloworld.git'
 
-                // Compartir código con los demás agentes
+                echo '=== COMPARTIR ARCHIVOS CON DEMAS AGENTES ==='
                 stash name: 'source-code', includes: '**/*'
-            }
-        }
-
-        stage('Build') {
-            agent any
-
-            steps {
-                unstash 'source-code'
-                 
-                echo '=== BUILD STAGE ==='
-                echo 'Eyyy, Python es interpretado, no requiere compilacion.'
-
-                echo "WORKSPACE: ${env.WORKSPACE}"
-
-                bat '''
-                    echo.
-                    echo ===== INFORMACION DEL AGENTE =====
-                    hostname
-                    whoami
-                    echo WORKSPACE=%WORKSPACE%
-                    echo.
-
-                    echo ===== VERSIONES =====
-                    python --version
-                    echo.
-
-                    echo ===== CONTENIDO DEL WORKSPACE =====
-                    dir
-                '''
             }
         }
 
         stage('Tests') {
             parallel {
-                stage('Unit') {
+
+                stage('UnitCover') {
                     agent { label 'Nodo1' }
                     steps {
-                        echo 'Ejecutando pruebas UNITARIAS en Nodo1'
+
+                        echo '==- RECUPERANDO ARCHIVOS NODO 1 ==-'
                         unstash 'source-code'
                         catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
                             bat '''
-                                echo.
-                                echo ==========================================
-                                echo PRUEBAS UNITARIAS - NODO1
-                                echo ==========================================
+                                echo ==- CONF. PYTHONPATH NODO 1==-
+                                set "PYTHONPATH=%WORKSPACE%"
 
+                                echo ==- DATOS NODO 1 ==-
                                 hostname
                                 whoami
                                 echo WORKSPACE=%WORKSPACE%
-                                echo.
 
-                                echo ===== VERSIONES =====
+                                echo ==- VERSIONES MODULOS NODO 1 ==-
+                                java --version
                                 python --version
                                 python -m pytest --version
-                                echo.
 
-                                REM Configurar PYTHONPATH
-                                set "PYTHONPATH=%WORKSPACE%"
+                                echo ==- INSTALA MODULOS NODO 1 -==
+                                python -m pip install --disable-pip-version-check -U coverage pytest
 
-                                REM Instalar pytest
-                                python -m pip install pytest
-
-                                REM Ejecutar pruebas unitarias
-                                python -m pytest --junitxml=result-unit.xml test\\unit
+                                echo ===== EJECUTA UNITARIAS/COVERAGE NODO 1 =====
+                                coverage run --branch --source=app --omit=app\\__init__.py,app\\api.py -m pytest --junitxml=result-unit.xml test\\unit
+                                coverage xml
                             '''
                         }
-                        stash name: 'result-unit', includes: 'result-unit.xml'
+
+                        echo '==- PUBLICA RESULTADOS NODO 1 ==-'
+                        junit 'result-unit.xml'
+
+                        recordCoverage(
+                            tools: [[
+                                parser: 'COBERTURA',
+                                pattern: '**/coverage.xml'
+                            ]],                        
+                            qualityGates: [
+                                // Cobertura de líneas:
+                                // - Menos de 95% => UNSTABLE
+                                // - Menos de 90% => FAILURE
+                                [criticality: 'UNSTABLE', metric: 'LINE', threshold: 95.0],
+                                [criticality: 'FAILURE', metric: 'LINE', threshold: 90.0],
+                        
+                                // Cobertura de ramas:
+                                // - Menos de 85% => UNSTABLE
+                                // - Menos de 80% => FAILURE
+                                [criticality: 'UNSTABLE', metric: 'BRANCH', threshold: 85.0],
+                                [criticality: 'FAILURE', metric: 'BRANCH', threshold: 80.0]
+                            ]
+                        )
                     }
                 }
 
                 stage('Rest') {
                     agent { label 'Nodo2' }
                     steps {
-                        echo 'Ejecutando pruebas REST en Nodo2'
+
+                        echo '==- RECUPERANDO ARCHIVOS NODO 2 ==-'
                         unstash 'source-code'
                         catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
                             bat '''
-                                echo.
-                                echo ==========================================
-                                echo PRUEBAS REST - NODO2
-                                echo ==========================================
+                                echo ==- CONF. PYTHONPATH NODO 2==-
+                                set "PYTHONPATH=%WORKSPACE%"
 
+                                echo ==- DATOS NODO 2 ==-
                                 hostname
                                 whoami
                                 echo WORKSPACE=%WORKSPACE%
                                 echo.
 
-                                echo ===== VERSIONES =====
+                                echo ==- VERSIONES MODULOS NODO 2 ==-
+                                java --version
                                 python --version
                                 python -m pytest --version
-                                java -version
-                                echo.
-
-                                REM Configurar Flask
+                        
+                                echo ==- CONF. FLASK NODO 2 ==-
                                 set FLASK_APP=app\\api.py
                                 set FLASK_ENV=development
-
-                                REM Levantar Flask
                                 start "" cmd /c flask run
 
-                                REM Levantar WireMock
+                                echo ==- CONF. WIREMOCK NODO 2 ==-
                                 start "" cmd /c java -jar C:\\Users\\Guarr1or\\Downloads\\Programas\\DevOps\\WireMock\\wiremock-standalone-3.13.2.jar --port 9090 --root-dir test\\wiremock
 
-                                REM Esperar arranque de servicios
+                                echo ==- ESPERA ARRANQUE SERVICIOS NODO 2 ==-
                                 ping 127.0.0.1 -n 11 > nul
 
-                                REM Configurar PYTHONPATH
-                                set "PYTHONPATH=%WORKSPACE%"
+                                echo ==- INSTALA MODULOS NODO 2 -==
+                                python -m pip install --disable-pip-version-check -U pytest
 
-                                REM Instalar pytest
-                                python -m pip install pytest
-
-                                REM Ejecutar pruebas REST
+                                echo ==- EJECUTA PRUEBAS REST NODO 2 -==
                                 python -m pytest --junitxml=result-rest.xml test\\rest
                             '''
                         }
-                        stash name: 'result-rest', includes: 'result-rest.xml'
+                        
+                        echo '==- PUBLICA RESULTADOS NODO 2 ==-'
+                        junit 'result-rest.xml'
                     }
                 }
+                                
+                stage('StaticsSecur') {
+                    agent { label 'Nodo2' }
+                    steps {
+
+                        echo '==- RECUPERANDO ARCHIVOS NODO 2 ==-'
+                        unstash 'source-code'
+                        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                            bat '''
+                                echo ==- CONF. PYTHONPATH NODO 2==-
+                                set "PYTHONPATH=%WORKSPACE%"
+
+                                echo ==- DATOS NODO 2 ==-
+                                hostname
+                                whoami
+                                echo WORKSPACE=%WORKSPACE%
+                                echo.
+
+                                echo ==- VERSIONES MODULOS NODO 2 ==-
+                                java --version
+                                python --version
+                                python -m pytest --version
+
+                                echo ==- INSTALA Y EJECUTA MODULOS NODO 2 -==
+                                python -m pip install --disable-pip-version-check -U flake8 bandit
+                                flake8 --exit-zero --format=pylint app >result-flake8.out
+                                bandit --exit-zero -r . -f custom -o result-bandit.out --msg-template "{abspath}:{line}: [{test_id}] {msg}"
+                            '''
+                        }
+
+                        echo '==- PUBLICA RESULTADOS NODO 2 ==-'
+                        recordIssues(
+                            tools: [
+                                flake8(
+                                    pattern: 'result-flake8.out',
+                                    name: 'Flake8'
+                                )
+                            ],
+                            qualityGates: [
+                                [threshold: 8, type: 'TOTAL', unstable: true],
+                                [threshold: 10, type: 'TOTAL', unstable: false]
+                            ]
+                        )
+                        
+                        recordIssues(
+                            tools: [
+                                pyLint(
+                                    pattern: 'result-bandit.out',
+                                    name: 'Bandit'
+                                )
+                            ],
+                            qualityGates: [
+                                [threshold: 2, type: 'TOTAL', unstable: true],
+                                [threshold: 5, type: 'TOTAL', unstable: false]
+                            ]
+                        )                        
+
+                    }
+                }
+                
+                stage('Performance') {
+                    agent { label 'Nodo1' }
+                    steps {
+
+                        echo '==- RECUPERANDO ARCHIVOS NODO 1 ==-'
+                        unstash 'source-code'
+                        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                            bat '''
+                                echo ==- DATOS NODO 1 ==-
+                                hostname
+                                whoami
+                                echo WORKSPACE=%WORKSPACE%
+
+                                echo ==- VERSIONES MODULOS NODO 1 ==-
+                                java --version
+
+                                echo ==- CONF. FLASK NODO 1 ==-
+                                set FLASK_APP=app\\api.py
+                                set FLASK_ENV=development
+                                start "" cmd /c flask run
+                            
+                                echo ==- ESPERA ARRANQUE SERVICIOS NODO 1 ==-
+                                ping 127.0.0.1 -n 10 > nul
+                            
+                                echo ==- EJECUTA PRUEBAS PERFORMANCE NODO 1 -==
+                                call "C:\\Users\\Guarr1or\\Downloads\\Programas\\DevOps\\JMeter\\apache-jmeter-5.6.3\\bin\\jmeter.bat" -n -t test\\jmeter\\flask.jmx -f -l flask.jtl
+                            '''
+                        }
+
+                        perfReport( 
+                            sourceDataFiles: 'flask.jtl',
+                            
+                            errorFailedThreshold: 5,
+                            errorUnstableThreshold: 1,
+                        
+                            relativeFailedThresholdPositive: 200,
+                            relativeUnstableThresholdPositive: 100                        
+                        )
+
+                    }
+                }                
             }
         }
 
-        stage('Results') {
-            agent any
-            steps {
-                echo '=== PUBLICANDO RESULTADOS ==='
-                unstash name:'result-unit'
-                unstash name:'result-rest'
-                junit 'result*.xml'
-            }
-        }
     }
 }
+
