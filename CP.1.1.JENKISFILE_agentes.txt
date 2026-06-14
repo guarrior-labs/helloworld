@@ -1,0 +1,154 @@
+pipeline {
+    agent none
+
+    stages {
+
+        stage('Get Code') {
+            agent any
+
+            steps {
+                echo '=== LIMPIANDO WORKSPACE ==='
+
+                // Limpia completamente el workspace
+                deleteDir()
+
+                echo '=== DESCARGANDO CODIGO DESDE GITHUB ==='
+
+                // Obtener código fuente
+                git 'https://github.com/guarrior-labs/helloworld.git'
+
+                // Compartir código con los demás agentes
+                stash name: 'source-code', includes: '**/*'
+            }
+        }
+
+        stage('Build') {
+            agent any
+
+            steps {
+                unstash 'source-code'
+                 
+                echo '=== BUILD STAGE ==='
+                echo 'Eyyy, Python es interpretado, no requiere compilacion.'
+
+                echo "WORKSPACE: ${env.WORKSPACE}"
+
+                bat '''
+                    echo.
+                    echo ===== INFORMACION DEL AGENTE =====
+                    hostname
+                    whoami
+                    echo WORKSPACE=%WORKSPACE%
+                    echo.
+
+                    echo ===== VERSIONES =====
+                    python --version
+                    echo.
+
+                    echo ===== CONTENIDO DEL WORKSPACE =====
+                    dir
+                '''
+            }
+        }
+
+        stage('Tests') {
+            parallel {
+                stage('Unit') {
+                    agent { label 'Nodo1' }
+                    steps {
+                        echo 'Ejecutando pruebas UNITARIAS en Nodo1'
+                        unstash 'source-code'
+                        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                            bat '''
+                                echo.
+                                echo ==========================================
+                                echo PRUEBAS UNITARIAS - NODO1
+                                echo ==========================================
+
+                                hostname
+                                whoami
+                                echo WORKSPACE=%WORKSPACE%
+                                echo.
+
+                                echo ===== VERSIONES =====
+                                python --version
+                                python -m pytest --version
+                                echo.
+
+                                REM Configurar PYTHONPATH
+                                set "PYTHONPATH=%WORKSPACE%"
+
+                                REM Instalar pytest
+                                python -m pip install pytest
+
+                                REM Ejecutar pruebas unitarias
+                                python -m pytest --junitxml=result-unit.xml test\\unit
+                            '''
+                        }
+                        stash name: 'result-unit', includes: 'result-unit.xml'
+                    }
+                }
+
+                stage('Rest') {
+                    agent { label 'Nodo2' }
+                    steps {
+                        echo 'Ejecutando pruebas REST en Nodo2'
+                        unstash 'source-code'
+                        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                            bat '''
+                                echo.
+                                echo ==========================================
+                                echo PRUEBAS REST - NODO2
+                                echo ==========================================
+
+                                hostname
+                                whoami
+                                echo WORKSPACE=%WORKSPACE%
+                                echo.
+
+                                echo ===== VERSIONES =====
+                                python --version
+                                python -m pytest --version
+                                java -version
+                                echo.
+
+                                REM Configurar Flask
+                                set FLASK_APP=app\\api.py
+                                set FLASK_ENV=development
+
+                                REM Levantar Flask
+                                start "" cmd /c flask run
+
+                                REM Levantar WireMock
+                                start "" cmd /c java -jar C:\\Users\\Guarr1or\\Downloads\\Programas\\DevOps\\WireMock\\wiremock-standalone-3.13.2.jar --port 9090 --root-dir test\\wiremock
+
+                                REM Esperar arranque de servicios
+                                ping 127.0.0.1 -n 11 > nul
+
+                                REM Configurar PYTHONPATH
+                                set "PYTHONPATH=%WORKSPACE%"
+
+                                REM Instalar pytest
+                                python -m pip install pytest
+
+                                REM Ejecutar pruebas REST
+                                python -m pytest --junitxml=result-rest.xml test\\rest
+                            '''
+                        }
+                        stash name: 'result-rest', includes: 'result-rest.xml'
+                    }
+                }
+            }
+        }
+
+        stage('Results') {
+            agent any
+            steps {
+                echo '=== PUBLICANDO RESULTADOS ==='
+                unstash name:'result-unit'
+                unstash name:'result-rest'
+                junit 'result*.xml'
+            }
+        }
+    }
+}
