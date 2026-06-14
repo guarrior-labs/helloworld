@@ -23,7 +23,8 @@ pipeline {
                 stage('UnitCover') {
                     agent { label 'Nodo1' }
                     steps {
-
+                        echo '=== LIMPIANDO WORKSPACE ==='
+                        deleteDir()
                         echo '==- RECUPERANDO ARCHIVOS NODO 1 ==-'
                         unstash 'source-code'
                         catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
@@ -78,7 +79,8 @@ pipeline {
                 stage('Rest') {
                     agent { label 'Nodo2' }
                     steps {
-
+                        echo '=== LIMPIANDO WORKSPACE ==='
+                        deleteDir()
                         echo '==- RECUPERANDO ARCHIVOS NODO 2 ==-'
                         unstash 'source-code'
                         catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
@@ -124,7 +126,8 @@ pipeline {
                 stage('StaticsSecur') {
                     agent { label 'Nodo2' }
                     steps {
-
+                        echo '=== LIMPIANDO WORKSPACE ==='
+                        deleteDir()
                         echo '==- RECUPERANDO ARCHIVOS NODO 2 ==-'
                         unstash 'source-code'
                         catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
@@ -183,7 +186,8 @@ pipeline {
                 stage('Performance') {
                     agent { label 'Nodo1' }
                     steps {
-
+                        echo '=== LIMPIANDO WORKSPACE ==='
+                        deleteDir()
                         echo '==- RECUPERANDO ARCHIVOS NODO 1 ==-'
                         unstash 'source-code'
                         catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
